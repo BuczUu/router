@@ -1,0 +1,1 @@
+/usr/bin/c++ CMakeFiles/sieci2.dir/main.cpp.o -o sieci2 

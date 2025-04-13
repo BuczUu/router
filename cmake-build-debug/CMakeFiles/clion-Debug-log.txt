@@ -1,0 +1,4 @@
+C:\Windows\system32\wsl.exe --distribution Ubuntu --exec "/mnt/c/Program Files/JetBrains/CLion 2024.1/bin/ttyfix" /bin/bash -c "export CLION_IDE=TRUE && export CMAKE_COLOR_DIAGNOSTICS=ON && export JETBRAINS_IDE=TRUE && cd /mnt/c/Users/Marce/CLionProjects/sieci2/cmake-build-debug && /usr/bin/cmake -DCMAKE_BUILD_TYPE=Debug '-DCMAKE_CXX_COMPILER=/usr/bin/g++' -G 'CodeBlocks - Unix Makefiles' -S /mnt/c/Users/Marce/CLionProjects/sieci2 -B /mnt/c/Users/Marce/CLionProjects/sieci2/cmake-build-debug"
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /mnt/c/Users/Marce/CLionProjects/sieci2/cmake-build-debug

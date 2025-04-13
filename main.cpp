@@ -139,6 +139,7 @@ private:
                                     INFINITY_DISTANCE : htonl(info.distance);
                 memcpy(packet + 5, &distance, 4);
 
+                cout << "Sending update to " << inet_ntoa(dest_addr.sin_addr) << endl;
                 sendto(sockfd, packet, sizeof(packet), 0,
                        (struct sockaddr*)&dest_addr, sizeof(dest_addr));
             }
@@ -184,6 +185,7 @@ private:
 
                 ssize_t n = recvfrom(sockfd, buffer, sizeof(buffer), 0,
                                      (struct sockaddr*)&cliaddr, &len);
+                cout << "Received packet from " << inet_ntoa(cliaddr.sin_addr) << endl;
                 if (n == sizeof(buffer)) {
                     process_packet(ntohl(cliaddr.sin_addr.s_addr), buffer);
                 }
@@ -199,23 +201,41 @@ private:
         lock_guard<mutex> lock(table_mutex);
         time_t now = time(nullptr);
 
-        uint32_t best_dist = INFINITY_DISTANCE;
+        // Znajdź koszt dotarcia do nadawcy (src_ip)
+        uint32_t cost_to_sender = INFINITY_DISTANCE;
         for (const auto& [net, dist] : directly_connected) {
             if ((src_ip & (0xFFFFFFFF << (32 - net.mask))) == net.ip) {
-                best_dist = dist;
+                cost_to_sender = dist;
                 break;
             }
         }
 
-        if (best_dist == INFINITY_DISTANCE) return;
+        // Jeśli nie mamy połączenia do nadawcy, odrzuć pakiet
+        if (cost_to_sender == INFINITY_DISTANCE) return;
 
         NetworkAddress dest{network_ip, mask};
-        uint32_t new_dist = (distance == INFINITY_DISTANCE) ?
-                            INFINITY_DISTANCE : min(best_dist + distance, (uint32_t)INFINITY_DISTANCE);
 
+        // Sprawdź czy to nie jest nasza bezpośrednia sieć
+        for (const auto& [direct_net, dist] : directly_connected) {
+            if (dest == direct_net) {
+                return; // Ignoruj informacje o naszych własnych sieciach
+            }
+        }
+
+        // Oblicz nową odległość (uwzględniając nieskończoność)
+        uint32_t new_distance = (distance == INFINITY_DISTANCE) ?
+                                INFINITY_DISTANCE :
+                                min(cost_to_sender + distance, (uint32_t)INFINITY_DISTANCE);
+
+        // Zaktualizuj tablicę routingu jeśli:
+        // - to nowa trasa, LUB
+        // - nowa odległość jest mniejsza, LUB
+        // - otrzymaliśmy aktualizację od następnego skoku
         auto it = routing_table.find(dest);
-        if (it == routing_table.end() || new_dist < it->second.distance || it->second.next_hop == src_ip) {
-            routing_table[dest] = {new_dist, src_ip, now};
+        if (it == routing_table.end() ||
+            new_distance < it->second.distance ||
+            it->second.next_hop == src_ip) {
+            routing_table[dest] = {new_distance, src_ip, now};
         }
     }
 

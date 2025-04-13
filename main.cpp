@@ -17,7 +17,7 @@ using namespace std;
 
 const int PORT = 54321;
 const int INFINITY_DISTANCE = 0xFFFFFFFF;
-const int UPDATE_INTERVAL = 20;
+const int UPDATE_INTERVAL = 10;
 const int ROUTE_TIMEOUT = 3 * UPDATE_INTERVAL;
 const int GARBAGE_COLLECTION_INTERVAL = 5 * UPDATE_INTERVAL;
 
@@ -85,6 +85,7 @@ public:
 
             directly_connected.emplace_back(network, distance);
             broadcast_addresses.push_back(ip | (~(0xFFFFFFFF << (32 - mask))));
+            routing_table[network] = {distance, 0, time(nullptr)};
         }
 
         sockfd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -117,12 +118,15 @@ public:
 
 private:
     void send_updates() {
+
         lock_guard<mutex> lock(table_mutex);
         time_t now = time(nullptr);
 
         struct sockaddr_in dest_addr{};
         dest_addr.sin_family = AF_INET;
         dest_addr.sin_port = htons(PORT);
+
+
 
         for (uint32_t broadcast_ip : broadcast_addresses) {
             dest_addr.sin_addr.s_addr = htonl(broadcast_ip);
@@ -139,7 +143,6 @@ private:
                                     INFINITY_DISTANCE : htonl(info.distance);
                 memcpy(packet + 5, &distance, 4);
 
-                cout << "Sending update to " << inet_ntoa(dest_addr.sin_addr) << endl;
                 sendto(sockfd, packet, sizeof(packet), 0,
                        (struct sockaddr*)&dest_addr, sizeof(dest_addr));
             }

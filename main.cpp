@@ -19,7 +19,7 @@ const int PORT = 54321;
 const int INFINITY_DISTANCE = 0xFFFFFFFF;
 const int UPDATE_INTERVAL = 10;
 const int ROUTE_TIMEOUT = 3 * UPDATE_INTERVAL;
-const int GARBAGE_COLLECTION_INTERVAL = 5 * UPDATE_INTERVAL;
+const int GARBAGE_COLLECTION_INTERVAL = 6 * UPDATE_INTERVAL;
 
 struct NetworkAddress {
     uint32_t ip;
@@ -143,8 +143,21 @@ private:
                                     INFINITY_DISTANCE : htonl(info.distance);
                 memcpy(packet + 5, &distance, 4);
 
-                sendto(sockfd, packet, sizeof(packet), 0,
-                       (struct sockaddr*)&dest_addr, sizeof(dest_addr));
+                // wysyłamy pakiet oraz gdyby się nie udało wysłać to zmieniamy odległośc na nieskończoność
+                ssize_t n = sendto(sockfd, packet, sizeof(packet), 0,
+                                   (struct sockaddr*)&dest_addr, sizeof(dest_addr));
+                if (n < 0) {
+                    cerr << "Error sending packet to " << inet_ntoa(dest_addr.sin_addr) << endl;
+
+                    // ustawiamy odległość odbiorcy na nieskończoność
+                    auto it = routing_table.find(network);
+                    if (it != routing_table.end()) {
+                        it->second.distance = INFINITY_DISTANCE;
+                    }
+                } else {
+                    cout << "Sent update to " << inet_ntoa(dest_addr.sin_addr) << endl;
+
+                }
             }
         }
     }
@@ -152,7 +165,7 @@ private:
     void update_loop() {
         while (running) {
             send_updates();
-            //cleanup_old_routes();
+            cleanup_old_routes();
             this_thread::sleep_for(chrono::seconds(UPDATE_INTERVAL));
         }
     }
@@ -161,14 +174,21 @@ private:
         lock_guard<mutex> lock(table_mutex);
         time_t now = time(nullptr);
 
+        // sprawdzamy czy dostaliśmy pakiety od sąsiadów w ciagu ROUTE_TIMEOUT jesli nie to ustawiamy odległość na nieskończoność
+        for (auto& [network, info] : routing_table) {
+            if (info.distance != INFINITY_DISTANCE && now - info.last_update > ROUTE_TIMEOUT) {
+                info.distance = INFINITY_DISTANCE;
+            }
+        }
+
         for (auto it = routing_table.begin(); it != routing_table.end(); ) {
             const RouteInfo& info = it->second;
 
-            if (info.is_directly_connected() ||
-                now - info.last_update <= GARBAGE_COLLECTION_INTERVAL) {
-                ++it;
-            } else {
+            // usuwamy tylko trasy ktore maja distance = infinity i sa przestarzałe
+            if (info.distance == INFINITY_DISTANCE && now - info.last_update > GARBAGE_COLLECTION_INTERVAL) {
                 it = routing_table.erase(it);
+            } else {
+                it++;
             }
         }
     }
@@ -204,9 +224,12 @@ private:
         lock_guard<mutex> lock(table_mutex);
         time_t now = time(nullptr);
 
+
+
         // Znajdź koszt dotarcia do nadawcy (src_ip)
         uint32_t cost_to_sender = INFINITY_DISTANCE;
         for (const auto& [net, dist] : directly_connected) {
+            // Sprawdź, czy nadawca należy do tej samej sieci
             if ((src_ip & (0xFFFFFFFF << (32 - net.mask))) == net.ip) {
                 cost_to_sender = dist;
                 break;
@@ -216,12 +239,15 @@ private:
         // Jeśli nie mamy połączenia do nadawcy, odrzuć pakiet
         if (cost_to_sender == INFINITY_DISTANCE) return;
 
+        // Obliczenie adresu sieci
         NetworkAddress dest{network_ip, mask};
 
         // Sprawdź czy to nie jest nasza bezpośrednia sieć
         for (const auto& [direct_net, dist] : directly_connected) {
             if (dest == direct_net) {
-                return; // Ignoruj informacje o naszych własnych sieciach
+                // Jeśli to nasza bezpośrednia sieć to aktualizujemy odległość (bo mogła być nieskończona ale już działa)
+                routing_table[dest] = {cost_to_sender, 0, now}; // moze byc blad z distance/cost_to_sender
+                return;
             }
         }
 
@@ -230,18 +256,23 @@ private:
                                 INFINITY_DISTANCE :
                                 min(cost_to_sender + distance, (uint32_t)INFINITY_DISTANCE);
 
-        // Zaktualizuj tablicę routingu jeśli:
-        // - to nowa trasa, LUB
-        // - nowa odległość jest mniejsza, LUB
-        // - otrzymaliśmy aktualizację od następnego skoku
+        // Sprawdź, czy mamy lepszą trasę lub czy jest to nowa trasa
         auto it = routing_table.find(dest);
-        if (it == routing_table.end() ||
-            new_distance < it->second.distance ||
-            it->second.next_hop == src_ip) {
-            routing_table[dest] = {new_distance, src_ip, now};
+
+        if (it == routing_table.end()) {
+            // Nowa trasa - dodaj jeśli odległość jest lepsza niż nieskończoność
+            if (new_distance < INFINITY_DISTANCE) {
+                routing_table[dest] = {new_distance, src_ip, now};
+            }
+        } else {
+            // Istniejąca trasa - aktualizuj jeśli nowa odległość jest lepsza
+            if (new_distance < it->second.distance) {
+                it->second = {new_distance, src_ip, now};
+            }
         }
     }
 
+    // wyswietlamy tablice routingu
     void display_loop() {
         while (running) {
             this_thread::sleep_for(chrono::seconds(UPDATE_INTERVAL));
@@ -251,34 +282,7 @@ private:
 
             cout << "\nRouting table at " << ctime(&now);
 
-            // Najpierw wyświetl bezpośrednie połączenia
-            for (const auto& [net, dist] : directly_connected) {
-                char ip[INET_ADDRSTRLEN];
-                struct in_addr addr;
-                addr.s_addr = htonl(net.ip);
-                inet_ntop(AF_INET, &addr, ip, sizeof(ip));
-                cout << ip << "/" << (int)net.mask << " distance "
-                     << dist << " connected directly\n";
-            }
-
-
-            // Następnie wyświetl pozostałe trasy, pomijając te które są bezpośrednie
             for (const auto& [net, info] : routing_table) {
-                // Sprawdź czy trasa jest aktualna jezeli jest nieskonczona
-                if ((now - info.last_update > ROUTE_TIMEOUT ) &&
-                    info.distance == INFINITY_DISTANCE) {
-                    continue;
-                }
-
-                // Sprawdź czy to nie jest bezpośrednie połączenie
-                bool is_direct = false;
-                for (const auto& [direct_net, dist] : directly_connected) {
-                    if (net == direct_net) {
-                        is_direct = true;
-                        break;
-                    }
-                }
-                if (is_direct) continue;
 
                 char ip[INET_ADDRSTRLEN], nh[INET_ADDRSTRLEN];
                 struct in_addr addr;
@@ -288,9 +292,17 @@ private:
                 addr.s_addr = htonl(info.next_hop);
                 inet_ntop(AF_INET, &addr, nh, sizeof(nh));
 
-                cout << ip << "/" << (int)net.mask << " distance "
-                     << (info.distance == INFINITY_DISTANCE ? "unreachable" : to_string(info.distance))
-                     << " via " << nh << "\n";
+                // wyswietlamy w zaleznosci czy direct czy nie
+                if (info.is_directly_connected()) {
+                    cout << ip << "/" << (int)net.mask
+                         << (info.distance == INFINITY_DISTANCE ? " unreachable" : " distance " + to_string(info.distance))
+                         << " connected directly \n";
+                }
+                else {
+                    cout << ip << "/" << (int)net.mask << " distance "
+                         << (info.distance == INFINITY_DISTANCE ? "unreachable" : to_string(info.distance))
+                         << " via " << nh << "\n";
+                }
             }
         }
     }

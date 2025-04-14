@@ -261,9 +261,14 @@ private:
                      << dist << " connected directly\n";
             }
 
+
             // Następnie wyświetl pozostałe trasy, pomijając te które są bezpośrednie
             for (const auto& [net, info] : routing_table) {
-                if (now - info.last_update > ROUTE_TIMEOUT) continue;
+                // Sprawdź czy trasa jest aktualna jezeli jest nieskonczona
+                if ((now - info.last_update > ROUTE_TIMEOUT ) &&
+                    info.distance == INFINITY_DISTANCE) {
+                    continue;
+                }
 
                 // Sprawdź czy to nie jest bezpośrednie połączenie
                 bool is_direct = false;

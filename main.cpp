@@ -152,6 +152,7 @@ private:
                     // ustawiamy odległość odbiorcy na nieskończoność
                     auto it = routing_table.find(network);
                     if (it != routing_table.end()) {
+                        cout << "x" << endl;
                         it->second.distance = INFINITY_DISTANCE;
                     }
                 } else {
@@ -174,19 +175,18 @@ private:
         time_t now = time(nullptr);
 
         // sprawdzamy czy dostaliśmy pakiety od sąsiadów w ciagu ROUTE_TIMEOUT jesli nie to ustawiamy odległość na nieskończoność
-        cout << "Cleaning up old routes..." << endl;
-        cout << "===================================================" << endl;
         for (auto& [network, info] : routing_table) {
+            /*
             cout << "Network: " << network.ip << "/" << (int)network.mask
                  << ", Distance: " << info.distance
                  << ", Last update: " << ctime(&info.last_update)
                  << ", Now: " << ctime(&now);
+            */
             if (info.distance != INFINITY_DISTANCE && now - info.last_update > ROUTE_TIMEOUT) {
-                cout << "aaaa" << endl;
+                cout << "a0" << endl;
                 info.distance = INFINITY_DISTANCE;
             }
         }
-        cout << "===================================================" << endl;
 
         for (auto it = routing_table.begin(); it != routing_table.end(); ) {
             const RouteInfo& info = it->second;
@@ -253,6 +253,7 @@ private:
         for (const auto& [direct_net, dist] : directly_connected) {
             if (dest == direct_net) {
                 // Jeśli to nasza bezpośrednia sieć to aktualizujemy odległość (bo mogła być nieskończona ale już działa)
+                cout << "a1" << endl;
                 routing_table[dest] = {cost_to_sender, 0, now}; // moze byc blad z distance/cost_to_sender
                 return;
             }
@@ -269,11 +270,13 @@ private:
         if (it == routing_table.end()) {
             // Nowa trasa - dodaj jeśli odległość jest lepsza niż nieskończoność
             if (new_distance < INFINITY_DISTANCE) {
+                cout << "a2" << endl;
                 routing_table[dest] = {new_distance, src_ip, now};
             }
         } else {
             // Istniejąca trasa - aktualizuj jeśli nowa odległość jest lepsza
             if (new_distance < it->second.distance) {
+                cout << "a3" << endl;
                 it->second = {new_distance, src_ip, now};
             }
         }

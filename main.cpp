@@ -284,11 +284,8 @@ private:
         // Sprawdź czy to nie jest nasza bezpośrednia sieć
         for (const auto& [direct_net, dist] : directly_connected) {
             if (dest == direct_net) {
-                // Jeśli to my sami sobie to wyslalismy to ignorujemy
-                if (src_ip == dest.ip) return;
-
                 // Jeśli to nasza bezpośrednia sieć to aktualizujemy odległość (bo mogła być nieskończona ale już działa)
-                routing_table[dest] = {cost_to_sender, 0, now}; // moze byc blad z distance/cost_to_sender
+                routing_table[dest] = {cost_to_sender, 0, now};
                 return;
             }
         }

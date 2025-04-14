@@ -156,7 +156,6 @@ private:
                     }
                 } else {
                     //cout << "Sent update to " << inet_ntoa(dest_addr.sin_addr) << endl;
-
                 }
             }
         }
@@ -175,8 +174,10 @@ private:
         time_t now = time(nullptr);
 
         // sprawdzamy czy dostaliśmy pakiety od sąsiadów w ciagu ROUTE_TIMEOUT jesli nie to ustawiamy odległość na nieskończoność
+        cout << "Cleaning up old routes..." << endl;
         for (auto& [network, info] : routing_table) {
             if (info.distance != INFINITY_DISTANCE && now - info.last_update > ROUTE_TIMEOUT) {
+                cout << "aaaa" << endl;
                 info.distance = INFINITY_DISTANCE;
             }
         }

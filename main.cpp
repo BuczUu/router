@@ -11,10 +11,10 @@
 #include <unistd.h>
 #include <netinet/in.h>
 #include <poll.h>
-#include <net/if.h>
-#include <sys/ioctl.h>
 #include <fstream>
-#include <set>
+#include <ifaddrs.h>
+#include <net/if.h>
+
 
 using namespace std;
 
@@ -56,7 +56,7 @@ private:
     thread update_thread;
     thread receive_thread;
     thread display_thread;
-    set<uint32_t> my_interface_ips;
+    vector<uint32_t> local_ips;
 
 public:
     Router() : sockfd(-1), running(false) {}
@@ -102,6 +102,8 @@ public:
         servaddr.sin_port = htons(PORT);
         bind(sockfd, (struct sockaddr*)&servaddr, sizeof(servaddr));
 
+        detect_local_ips();
+
         return true;
     }
 
@@ -121,6 +123,26 @@ public:
     }
 
 private:
+    void detect_local_ips() {
+        struct ifaddrs* ifaddr;
+        if (getifaddrs(&ifaddr) == -1) {
+            perror("getifaddrs");
+            return;
+        }
+
+        for (struct ifaddrs* ifa = ifaddr; ifa != nullptr; ifa = ifa->ifa_next) {
+            if (!ifa->ifa_addr || ifa->ifa_addr->sa_family != AF_INET)
+                continue;
+
+            struct sockaddr_in* sa = (struct sockaddr_in*)ifa->ifa_addr;
+            uint32_t ip = ntohl(sa->sin_addr.s_addr);
+
+            local_ips.push_back(ip);
+        }
+
+        freeifaddrs(ifaddr);
+    }
+
     void send_updates() {
 
         lock_guard<mutex> lock(table_mutex);
@@ -228,9 +250,11 @@ private:
     }
 
     void process_packet(uint32_t src_ip, const uint8_t* packet) {
-        // Sprawdź czy to pakiet od nas samych (z naszego interfejsu)
-        if (my_interface_ips.count(src_ip)) {
-            return; // Całkowicie odrzuć pakiet od siebie
+        for (uint32_t my_ip : local_ips) {
+            if (src_ip == my_ip) {
+                cout << "Ignored packet from self (" << src_ip << ")" << endl;
+                return;
+            }
         }
         uint32_t network_ip = ntohl(*(uint32_t*)packet);
         uint8_t mask = packet[4];
@@ -292,24 +316,7 @@ private:
         }
     }
 
-    void get_interface_ips() {
-        int fd = socket(AF_INET, SOCK_DGRAM, 0);
-        struct ifconf ifc;
-        char buf[1024];
 
-        ifc.ifc_len = sizeof(buf);
-        ifc.ifc_buf = buf;
-        ioctl(fd, SIOCGIFCONF, &ifc);
-
-        struct ifreq* it = ifc.ifc_req;
-        const struct ifreq* end = it + (ifc.ifc_len / sizeof(struct ifreq));
-
-        for (; it != end; ++it) {
-            struct sockaddr_in* saddr = (struct sockaddr_in*)&it->ifr_addr;
-            my_interface_ips.insert(ntohl(saddr->sin_addr.s_addr));
-        }
-        close(fd);
-    }
 
     // wyswietlamy tablice routingu
     void display_loop() {

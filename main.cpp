@@ -182,7 +182,7 @@ private:
                         it->second.distance = INFINITY_DISTANCE;
                     }
                 } else {
-                    cout << "Sent update to " << inet_ntoa(dest_addr.sin_addr) << endl;
+                    //cout << "Sent update to " << inet_ntoa(dest_addr.sin_addr) << endl;
                 }
             }
         }
@@ -209,7 +209,6 @@ private:
                  << ", Now: " << ctime(&now);
             */
             if (info.distance != INFINITY_DISTANCE && now - info.last_update > ROUTE_TIMEOUT) {
-                cout << "a0" << endl;
                 info.distance = INFINITY_DISTANCE;
             }
         }
@@ -241,7 +240,7 @@ private:
 
                 ssize_t n = recvfrom(sockfd, buffer, sizeof(buffer), 0,
                                      (struct sockaddr*)&cliaddr, &len);
-                cout << "Received packet from " << inet_ntoa(cliaddr.sin_addr) << endl;
+                //cout << "Received packet from " << inet_ntoa(cliaddr.sin_addr) << endl;
                 if (n == sizeof(buffer)) {
                     process_packet(ntohl(cliaddr.sin_addr.s_addr), buffer);
                 }
@@ -252,7 +251,7 @@ private:
     void process_packet(uint32_t src_ip, const uint8_t* packet) {
         for (uint32_t my_ip : local_ips) {
             if (src_ip == my_ip) {
-                cout << "Ignored packet from self (" << src_ip << ")" << endl;
+                //cout << "Ignored packet from self (" << src_ip << ")" << endl;
                 return;
             }
         }
@@ -286,7 +285,7 @@ private:
             if (dest == direct_net) {
                 // Jeśli to my sami sobie to wyslalismy to ignorujemy
                 if (src_ip == dest.ip) return;
-                cout << "a1" << endl;
+
                 // Jeśli to nasza bezpośrednia sieć to aktualizujemy odległość (bo mogła być nieskończona ale już działa)
                 routing_table[dest] = {cost_to_sender, 0, now}; // moze byc blad z distance/cost_to_sender
                 return;
@@ -310,7 +309,6 @@ private:
         } else {
             // Istniejąca trasa - aktualizuj jeśli nowa odległość jest lepsza
             if (new_distance < it->second.distance) {
-                cout << "a3" << endl;
                 it->second = {new_distance, src_ip, now};
             }
         }

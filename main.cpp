@@ -155,7 +155,7 @@ private:
                         it->second.distance = INFINITY_DISTANCE;
                     }
                 } else {
-                    cout << "Sent update to " << inet_ntoa(dest_addr.sin_addr) << endl;
+                    //cout << "Sent update to " << inet_ntoa(dest_addr.sin_addr) << endl;
 
                 }
             }
@@ -208,7 +208,7 @@ private:
 
                 ssize_t n = recvfrom(sockfd, buffer, sizeof(buffer), 0,
                                      (struct sockaddr*)&cliaddr, &len);
-                cout << "Received packet from " << inet_ntoa(cliaddr.sin_addr) << endl;
+                //cout << "Received packet from " << inet_ntoa(cliaddr.sin_addr) << endl;
                 if (n == sizeof(buffer)) {
                     process_packet(ntohl(cliaddr.sin_addr.s_addr), buffer);
                 }

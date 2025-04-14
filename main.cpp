@@ -11,7 +11,10 @@
 #include <unistd.h>
 #include <netinet/in.h>
 #include <poll.h>
+#include <net/if.h>
+#include <sys/ioctl.h>
 #include <fstream>
+#include <set>
 
 using namespace std;
 
@@ -53,6 +56,7 @@ private:
     thread update_thread;
     thread receive_thread;
     thread display_thread;
+    set<uint32_t> my_interface_ips;
 
 public:
     Router() : sockfd(-1), running(false) {}
@@ -224,6 +228,10 @@ private:
     }
 
     void process_packet(uint32_t src_ip, const uint8_t* packet) {
+        // Sprawdź czy to pakiet od nas samych (z naszego interfejsu)
+        if (my_interface_ips.count(src_ip)) {
+            return; // Całkowicie odrzuć pakiet od siebie
+        }
         uint32_t network_ip = ntohl(*(uint32_t*)packet);
         uint8_t mask = packet[4];
         uint32_t distance = ntohl(*(uint32_t*)(packet + 5));
@@ -282,6 +290,25 @@ private:
                 it->second = {new_distance, src_ip, now};
             }
         }
+    }
+
+    void get_interface_ips() {
+        int fd = socket(AF_INET, SOCK_DGRAM, 0);
+        struct ifconf ifc;
+        char buf[1024];
+
+        ifc.ifc_len = sizeof(buf);
+        ifc.ifc_buf = buf;
+        ioctl(fd, SIOCGIFCONF, &ifc);
+
+        struct ifreq* it = ifc.ifc_req;
+        const struct ifreq* end = it + (ifc.ifc_len / sizeof(struct ifreq));
+
+        for (; it != end; ++it) {
+            struct sockaddr_in* saddr = (struct sockaddr_in*)&it->ifr_addr;
+            my_interface_ips.insert(ntohl(saddr->sin_addr.s_addr));
+        }
+        close(fd);
     }
 
     // wyswietlamy tablice routingu

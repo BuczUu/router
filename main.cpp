@@ -209,6 +209,7 @@ private:
                  << ", Now: " << ctime(&now);
             */
             if (info.distance != INFINITY_DISTANCE && now - info.last_update > ROUTE_TIMEOUT) {
+                cout << "aa" << endl;
                 info.distance = INFINITY_DISTANCE;
             }
         }
@@ -303,7 +304,6 @@ private:
         if (it == routing_table.end()) {
             // Nowa trasa - dodaj jeśli odległość jest lepsza niż nieskończoność
             if (new_distance < INFINITY_DISTANCE) {
-                cout << "a2" << endl;
                 routing_table[dest] = {new_distance, src_ip, now};
             }
         } else {

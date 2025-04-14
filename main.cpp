@@ -175,12 +175,18 @@ private:
 
         // sprawdzamy czy dostaliśmy pakiety od sąsiadów w ciagu ROUTE_TIMEOUT jesli nie to ustawiamy odległość na nieskończoność
         cout << "Cleaning up old routes..." << endl;
+        cout << "===================================================" << endl;
         for (auto& [network, info] : routing_table) {
+            cout << "Network: " << network.ip << "/" << (int)network.mask
+                 << ", Distance: " << info.distance
+                 << ", Last update: " << ctime(&info.last_update)
+                 << ", Now: " << ctime(&now);
             if (info.distance != INFINITY_DISTANCE && now - info.last_update > ROUTE_TIMEOUT) {
                 cout << "aaaa" << endl;
                 info.distance = INFINITY_DISTANCE;
             }
         }
+        cout << "===================================================" << endl;
 
         for (auto it = routing_table.begin(); it != routing_table.end(); ) {
             const RouteInfo& info = it->second;

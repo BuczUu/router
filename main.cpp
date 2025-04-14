@@ -308,6 +308,10 @@ private:
             if (new_distance < it->second.distance) {
                 it->second = {new_distance, src_ip, now};
             }
+            // jeśli nowa odległość jest równa to aktualizujemy czas
+            else (new_distance == it->second.distance) {
+                it->second.last_update = now;
+            }
         }
     }
 

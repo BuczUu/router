@@ -152,7 +152,7 @@ private:
     void update_loop() {
         while (running) {
             send_updates();
-            cleanup_old_routes();
+            //cleanup_old_routes();
             this_thread::sleep_for(chrono::seconds(UPDATE_INTERVAL));
         }
     }

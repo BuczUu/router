@@ -128,7 +128,7 @@ public:
 
 private:
     bool isReachable(const std::string& ip) {
-        std::string cmd = "ping -c 1 -W 1 " + ip + " > /dev/null 2>&1";
+        std::string cmd = "ping -c 1 -W 1 -b " + ip + " > /dev/null 2>&1";
         return system(cmd.c_str()) == 0;
     }
 

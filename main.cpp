@@ -78,18 +78,24 @@ public:
             uint32_t distance;
             file >> ip_cidr >> dummy >> distance;
 
+            // znaleźć pozycję '/' w ip_cidr
             size_t slash_pos = ip_cidr.find('/');
+            // ip_str to adres IP bez maski
             string ip_str = ip_cidr.substr(0, slash_pos);
+            // mask to maska podsieci
             int mask = stoi(ip_cidr.substr(slash_pos + 1));
 
+            // konwertujemy adres IP na uint32_t
             struct in_addr addr;
             inet_pton(AF_INET, ip_str.c_str(), &addr);
+            // konwertujemy adres IP z formatu binarnego na uint32_t
             uint32_t ip = ntohl(addr.s_addr);
             NetworkAddress network{ip & (0xFFFFFFFF << (32 - mask)), (uint8_t)mask};
 
             directly_connected.emplace_back(network, distance);
             broadcast_addresses.push_back(ip | (~(0xFFFFFFFF << (32 - mask))));
             routing_table[network] = {distance, 0, time(nullptr)};
+            local_ips.push_back(ip);
         }
 
         sockfd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -101,8 +107,6 @@ public:
         servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
         servaddr.sin_port = htons(PORT);
         bind(sockfd, (struct sockaddr*)&servaddr, sizeof(servaddr));
-
-        detect_local_ips();
 
         return true;
     }
@@ -123,26 +127,6 @@ public:
     }
 
 private:
-    void detect_local_ips() {
-        struct ifaddrs* ifaddr;
-        if (getifaddrs(&ifaddr) == -1) {
-            perror("getifaddrs");
-            return;
-        }
-
-        for (struct ifaddrs* ifa = ifaddr; ifa != nullptr; ifa = ifa->ifa_next) {
-            if (!ifa->ifa_addr || ifa->ifa_addr->sa_family != AF_INET)
-                continue;
-
-            struct sockaddr_in* sa = (struct sockaddr_in*)ifa->ifa_addr;
-            uint32_t ip = ntohl(sa->sin_addr.s_addr);
-
-            local_ips.push_back(ip);
-        }
-
-        freeifaddrs(ifaddr);
-    }
-
     void send_updates() {
 
         lock_guard<mutex> lock(table_mutex);
@@ -200,7 +184,7 @@ private:
         lock_guard<mutex> lock(table_mutex);
         time_t now = time(nullptr);
 
-        // sprawdzamy czy dostaliśmy pakiety od sąsiadów w ciagu ROUTE_TIMEOUT jesli nie to ustawiamy odległość na nieskończoność
+        // sprawdzamy czy dostaliśmy pakiety od sąsiadów w ciagu ROUTE_TIMEOUT jesli nie to ustawiamy odległość tras przechodzących przez nich na nieskończoność
         for (auto& [network, info] : routing_table) {
             /*
             cout << "Network: " << network.ip << "/" << (int)network.mask
@@ -208,6 +192,7 @@ private:
                  << ", Last update: " << ctime(&info.last_update)
                  << ", Now: " << ctime(&now);
             */
+            //
             if (info.distance != INFINITY_DISTANCE && now - info.last_update > ROUTE_TIMEOUT) {
                 cout << "aa" << endl;
                 info.distance = INFINITY_DISTANCE;

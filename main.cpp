@@ -127,6 +127,11 @@ public:
     }
 
 private:
+    bool isReachable(const std::string& ip) {
+        std::string cmd = "ping -c 1 -W 1 " + ip + " > /dev/null 2>&1";
+        return system(cmd.c_str()) == 0;
+    }
+
     void send_updates() {
 
         lock_guard<mutex> lock(table_mutex);
@@ -140,9 +145,24 @@ private:
 
         for (uint32_t broadcast_ip : broadcast_addresses) {
             dest_addr.sin_addr.s_addr = htonl(broadcast_ip);
+            // Sprawdzenie, czy interfejs jest aktywny
+            if (!isReachable(inet_ntoa(dest_addr.sin_addr))) {
+                cerr << "Interface with broadcast " << inet_ntoa(dest_addr.sin_addr)
+                     << " is not working" << endl;
+                continue;  // Pomiń ten interfejs
+            }
+
+            // Próba wysłania testowego pakietu
+            if (sendto(sockfd, nullptr, 0, 0, (struct sockaddr*)&dest_addr, sizeof(dest_addr)) < 0) {
+                cerr << "Interface with broadcast " << inet_ntoa(dest_addr.sin_addr)
+                     << " is not working: " << strerror(errno) << endl;
+                continue;  // Pomiń ten interfejs
+            }
 
             for (const auto& [network, info] : routing_table) {
-                if (now - info.last_update > ROUTE_TIMEOUT) continue;
+                // nie wysyłamy pakietów na temat sieci, która jest nieaktywne od paru i ma odległość nieskończoną
+                // bezpośrednie sieci zostawiamy, a niebezpośrednie w cleanie usuwamy
+                if ((now - info.last_update > ROUTE_TIMEOUT) && (info.distance == INFINITY_DISTANCE)) continue;
 
                 uint8_t packet[9];
                 uint32_t network_ip = htonl(network.ip);
@@ -154,8 +174,12 @@ private:
                 memcpy(packet + 5, &distance, 4);
 
                 // wysyłamy pakiet oraz gdyby się nie udało wysłać to zmieniamy odległośc na nieskończoność
-                ssize_t n = sendto(sockfd, packet, sizeof(packet), 0,
-                                   (struct sockaddr*)&dest_addr, sizeof(dest_addr));
+                cout << (sendto(sockfd, packet, sizeof(packet), 0,
+                                   (struct sockaddr*)&dest_addr, sizeof(dest_addr))) << endl;
+
+
+
+                /*
                 if (n < 0) {
                     cerr << "Error sending packet to " << inet_ntoa(dest_addr.sin_addr) << endl;
 
@@ -168,6 +192,7 @@ private:
                 } else {
                     //cout << "Sent update to " << inet_ntoa(dest_addr.sin_addr) << endl;
                 }
+                 */
             }
         }
     }
@@ -202,8 +227,8 @@ private:
         for (auto it = routing_table.begin(); it != routing_table.end(); ) {
             const RouteInfo& info = it->second;
 
-            // usuwamy tylko trasy ktore maja distance = infinity i sa przestarzałe
-            if (info.distance == INFINITY_DISTANCE && now - info.last_update > GARBAGE_COLLECTION_INTERVAL) {
+            // usuwamy tylko trasy ktore maja distance = infinity i sa przestarzałe, ale nie usuwamy bezpośrednich
+            if ((info.distance == INFINITY_DISTANCE) && (now - info.last_update > GARBAGE_COLLECTION_INTERVAL) && (!info.is_directly_connected())) {
                 it = routing_table.erase(it);
             } else {
                 it++;

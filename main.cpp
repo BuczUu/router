@@ -271,6 +271,7 @@ private:
                 if (info.is_directly_connected()) {
                     cout << "aa" << endl;
 
+                    set_distance_to_infinity_for_route(network);
                     // funkcja do zmiany odleglosci na infinity w sciezce majacej ten adres jako next hop
                     //
 

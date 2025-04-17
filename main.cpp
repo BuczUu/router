@@ -257,6 +257,7 @@ private:
                     cout << "aa" << endl;
 
                     // funkcja do zmiany odleglosci na infinity w sciezce majacej ten adres jako next hop
+                    //
 
                     // dla bezposrednich nie zmieniamy na infinity tylko zmieniamy odleglosci w sciezkach ktore przechodza przez ten adres
                 }

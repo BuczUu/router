@@ -162,6 +162,9 @@ private:
                         rt_info.is_directly_connected()) {
                         rt_info.distance = INFINITY_DISTANCE;
                         rt_info.last_update = now;
+
+                        // funkcja do zmiany odleglosci na infinity w sciezce majacej ten adres jako next hop
+
                         break;
                     }
                 }
@@ -249,9 +252,20 @@ private:
             // bo gdy nie dostaniemy pakietu od sasiada przez tyle tur to cos jest nie tak
             // trzebabybylo zmienic kazda trace z tym adresem na nieskonczonosc
             if (info.distance != INFINITY_DISTANCE && now - info.last_update > ROUTE_TIMEOUT) {
-                cout << "aa" << endl;
-                // info.distance = INFINITY_DISTANCE;
-                // mie zmieniamy na infinity tylko zmieniamy odleglosci w sciezkach ktore przechodza przez ten adres
+
+                if (info.is_directly_connected()) {
+                    cout << "aa" << endl;
+
+                    // funkcja do zmiany odleglosci na infinity w sciezce majacej ten adres jako next hop
+
+                    // dla bezposrednich nie zmieniamy na infinity tylko zmieniamy odleglosci w sciezkach ktore przechodza przez ten adres
+                }
+                else {
+                    cout << "bb" << endl;
+                    info.distance = INFINITY_DISTANCE;
+                    // zmieniamy na infinity bo to nie nasza bezposrednia siec
+                    // i zmieniamy distance na nieskonczonosc
+                }
             }
             // czyli sasiedzi nie wysylaja nam lepszych lub rownych odleglosci (czyli jakas awaria) zmiana na nieskonczonosc
             // i zmiana w tablicy routingu dla wartości ktore maja hop przez ten adres

@@ -167,6 +167,25 @@ private:
                 }
                 continue;
             }
+            else {
+                for (auto& [rt_network, rt_info] : routing_table) {
+                    if (rt_network.ip == network.ip &&
+                        rt_network.mask == network.mask &&
+                        rt_info.is_directly_connected()) {
+                        // zmien distance na distance z directly_connected
+                        // i ustawiamy czas na teraz
+                        for (const auto& [direct_net, dist] : directly_connected) {
+                            if (direct_net == rt_network) {
+                                rt_info.distance = dist;
+                                break;
+                            }
+                        }
+                        // nie zmieniamy last_update bo psuje to nam wykrywanie czy nic z danej sieci nie dostajemy
+                        // tzn moze byc ze nie dostajemy z tej sieci zadnych danych wiec nie mozemy miec sciezek przez nia
+                        break;
+                    }
+                }
+            }
 
             for (const auto& [network, info] : routing_table) {
                 // nie wysyłamy pakietów na temat sieci, która jest nieaktywne od paru i ma odległość nieskończoną
@@ -182,7 +201,7 @@ private:
                                     INFINITY_DISTANCE : htonl(info.distance);
                 memcpy(packet + 5, &distance, 4);
 
-                // wysyłamy pakiet oraz gdyby się nie udało wysłać to zmieniamy odległośc na nieskończoność
+                // wysyłamy pakiet na adres rozgłoszeniowy
                 sendto(sockfd, packet, sizeof(packet), 0,
                                    (struct sockaddr*)&dest_addr, sizeof(dest_addr));
 
@@ -226,11 +245,19 @@ private:
                  << ", Last update: " << ctime(&info.last_update)
                  << ", Now: " << ctime(&now);
             */
-            //
+            // zmienic
+            // bo gdy nie dostaniemy pakietu od sasiada przez tyle tur to cos jest nie tak
+            // trzebabybylo zmienic kazda trace z tym adresem na nieskonczonosc
             if (info.distance != INFINITY_DISTANCE && now - info.last_update > ROUTE_TIMEOUT) {
                 cout << "aa" << endl;
-                info.distance = INFINITY_DISTANCE;
+                // info.distance = INFINITY_DISTANCE;
+                // mie zmieniamy na infinity tylko zmieniamy odleglosci w sciezkach ktore przechodza przez ten adres
             }
+            // czyli sasiedzi nie wysylaja nam lepszych lub rownych odleglosci (czyli jakas awaria) zmiana na nieskonczonosc
+            // i zmiana w tablicy routingu dla wartości ktore maja hop przez ten adres
+            // ale chyba tylko dla bezposrednich
+            // tzn nie dostajemy w kilku turach odpowiedzi od sasiada (czyli informacji o directach) wiec zmieniamy odleglosc do directow na infi oraz
+            // musimy zmienic odleglosc na inf i dla wszystkich tras ktore maja ten adres jako next hop
         }
 
         for (auto it = routing_table.begin(); it != routing_table.end(); ) {

@@ -19,7 +19,7 @@
 using namespace std;
 
 const int PORT = 54321;
-const int INFINITY_DISTANCE = 0xFFFFFFFF;
+const int INFINITY_DISTANCE = 10;
 const int UPDATE_INTERVAL = 10;
 const int ROUTE_TIMEOUT = 3 * UPDATE_INTERVAL;
 const int GARBAGE_COLLECTION_INTERVAL = 6 * UPDATE_INTERVAL;

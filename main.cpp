@@ -300,9 +300,14 @@ private:
         // Obliczenie adresu sieci
         NetworkAddress dest{network_ip, mask};
 
+        // bladddd
         // Sprawdź czy to nie jest nasza bezpośrednia sieć
         for (const auto& [direct_net, dist] : directly_connected) {
-            if (dest == direct_net) {
+            // jeśli to nasza bezpośrednia sieć ktora przyszla od naszego sąsiada to ignorujemy
+            // sprawdzenie czy src_ip jest w naszej bezpośredniej sieci
+
+            if ((dest == direct_net) && ((src_ip & (0xFFFFFFFF << (32 - direct_net.mask))) == direct_net.ip)) {
+                // niedziala gdy nam interfejs nie dziala i dostajemy nasz siec od innej maszyny (na okolo)
                 // Jeśli to nasza bezpośrednia sieć to aktualizujemy odległość (bo mogła być nieskończona ale już działa)
                 routing_table[dest] = {cost_to_sender, 0, now};
                 return;

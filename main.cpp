@@ -294,6 +294,7 @@ private:
         for (auto it = routing_table.begin(); it != routing_table.end(); ) {
             const RouteInfo& info = it->second;
 
+            // nie usuwa trasy gdy np. 4 trasy maja unreachable tej samej sieci (bo aktualizujemy timestamp bo
             // usuwamy tylko trasy ktore maja distance = infinity i sa przestarzałe, ale nie usuwamy bezpośrednich
             if ((info.distance == INFINITY_DISTANCE) && (now - info.last_update > GARBAGE_COLLECTION_INTERVAL) && (!info.is_directly_connected())) {
                 it = routing_table.erase(it);
@@ -358,7 +359,6 @@ private:
         // Obliczenie adresu sieci
         NetworkAddress dest{network_ip, mask};
 
-        // bladddd
         // Sprawdź czy to nie jest nasza bezpośrednia sieć
         for (const auto& [direct_net, dist] : directly_connected) {
             // jeśli to nasza bezpośrednia sieć ktora przyszla od naszego sąsiada to ignorujemy
@@ -371,6 +371,9 @@ private:
                 return;
             }
         }
+
+        // mozna dodac jeszcze ze jak pobieramy informacje o jakiejś sieci to sprawdzamy (gdy odleglosc jest mniejsza) czy przypadkiem
+        // next_hop nie jest nasza bezposrednia siecia (teraz tez dziala ale dopierop po paru turach sie dowiadujemy ze jakas sieć nie działa)
 
         // Oblicz nową odległość (uwzględniając nieskończoność)
         uint32_t new_distance = (distance == INFINITY_DISTANCE) ?
@@ -391,7 +394,7 @@ private:
                 it->second = {new_distance, src_ip, now};
             }
             // jeśli nowa odległość jest równa to aktualizujemy czas
-            else if (new_distance == it->second.distance) {
+            else if ((new_distance == it->second.distance) && (new_distance != INFINITY_DISTANCE)) {
                 it->second.last_update = now;
             }
         }

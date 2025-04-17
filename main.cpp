@@ -164,6 +164,7 @@ private:
                         rt_info.last_update = now;
 
                         // funkcja do zmiany odleglosci na infinity w sciezce majacej ten adres jako next hop
+                        set_distance_to_infinity_for_route(network);
 
                         break;
                     }
@@ -235,6 +236,20 @@ private:
             this_thread::sleep_for(chrono::seconds(UPDATE_INTERVAL));
         }
     }
+
+    // funkcja do ustwienia odleglosci na infinity w sciezce majacej ten adres jako next hop
+    void set_distance_to_infinity_for_route(const NetworkAddress& network) {
+        for (auto& [net, info] : routing_table) {
+            // musimy przekonwertowac adres next_hop na adres sieci
+            auto network_from_ip = info.next_hop & (0xFFFFFFFF << (32 - network.mask));
+
+            if (network_from_ip == network.ip) {
+                info.distance = INFINITY_DISTANCE;
+            }
+        }
+    }
+
+
 
     void cleanup_old_routes() {
         lock_guard<mutex> lock(table_mutex);

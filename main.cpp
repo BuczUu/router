@@ -47,6 +47,10 @@ struct RouteInfo {
 
 class Router {
 private:
+
+
+    vector<pair<NetworkAddress, uint32_t>> broadcast_to_network;
+
     map<NetworkAddress, RouteInfo> routing_table;
     vector<pair<NetworkAddress, uint32_t>> directly_connected;
     vector<uint32_t> broadcast_addresses;
@@ -95,6 +99,7 @@ public:
             directly_connected.emplace_back(network, distance);
             broadcast_addresses.push_back(ip | (~(0xFFFFFFFF << (32 - mask))));
             routing_table[network] = {distance, 0, time(nullptr)};
+            broadcast_to_network.emplace_back(network, ip | (~(0xFFFFFFFF << (32 - mask))));
             local_ips.push_back(ip);
         }
 
@@ -133,7 +138,6 @@ private:
     }
 
     void send_updates() {
-
         lock_guard<mutex> lock(table_mutex);
         time_t now = time(nullptr);
 
@@ -141,22 +145,27 @@ private:
         dest_addr.sin_family = AF_INET;
         dest_addr.sin_port = htons(PORT);
 
-
-
-        for (uint32_t broadcast_ip : broadcast_addresses) {
+        for (const auto& [network, broadcast_ip] : broadcast_to_network) {
             dest_addr.sin_addr.s_addr = htonl(broadcast_ip);
-            // Sprawdzenie, czy interfejs jest aktywny
-            if (!isReachable(inet_ntoa(dest_addr.sin_addr))) {
-                cerr << "Interface with broadcast " << inet_ntoa(dest_addr.sin_addr)
-                     << " is not working" << endl;
-                continue;  // Pomiń ten interfejs
-            }
+            char broadcast_str[INET_ADDRSTRLEN];
+            inet_ntop(AF_INET, &dest_addr.sin_addr, broadcast_str, sizeof(broadcast_str));
 
-            // Próba wysłania testowego pakietu
-            if (sendto(sockfd, nullptr, 0, 0, (struct sockaddr*)&dest_addr, sizeof(dest_addr)) < 0) {
-                cerr << "Interface with broadcast " << inet_ntoa(dest_addr.sin_addr)
-                     << " is not working: " << strerror(errno) << endl;
-                continue;  // Pomiń ten interfejs
+            if (!isReachable(broadcast_str)) {
+                /*
+                cout << "Network " << network.ip << "/" << (int)network.mask
+                     << " (broadcast: " << broadcast_str << ") is unreachable" << endl;
+                */
+                // Znajdź odpowiedni wpis w routing_table
+                for (auto& [rt_network, rt_info] : routing_table) {
+                    if (rt_network.ip == network.ip &&
+                        rt_network.mask == network.mask &&
+                        rt_info.is_directly_connected()) {
+                        rt_info.distance = INFINITY_DISTANCE;
+                        rt_info.last_update = now;
+                        break;
+                    }
+                }
+                continue;
             }
 
             for (const auto& [network, info] : routing_table) {
@@ -174,8 +183,8 @@ private:
                 memcpy(packet + 5, &distance, 4);
 
                 // wysyłamy pakiet oraz gdyby się nie udało wysłać to zmieniamy odległośc na nieskończoność
-                cout << (sendto(sockfd, packet, sizeof(packet), 0,
-                                   (struct sockaddr*)&dest_addr, sizeof(dest_addr))) << endl;
+                sendto(sockfd, packet, sizeof(packet), 0,
+                                   (struct sockaddr*)&dest_addr, sizeof(dest_addr));
 
 
 
@@ -333,6 +342,9 @@ private:
 
             lock_guard<mutex> lock(table_mutex);
             time_t now = time(nullptr);
+
+            // wyswietlamy brodkast i adresy sieci
+
 
             cout << "\nRouting table at " << ctime(&now);
 

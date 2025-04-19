@@ -345,6 +345,7 @@ private:
             // i zmieniamy odleglośc na oryginalna (bo mogła być nieskończona)
             if ((src_ip & (0xFFFFFFFF << (32 - net.mask))) == net.ip) {
                 cost_to_sender = dist;
+                routing_table[net].last_update = now;
                 break;
             }
         }

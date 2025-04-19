@@ -176,8 +176,8 @@ private:
                     if (rt_network.ip == network.ip &&
                         rt_network.mask == network.mask &&
                         rt_info.is_directly_connected()) {
+
                         // zmien distance na distance z directly_connected
-                        // i ustawiamy czas na teraz
                         for (const auto& [direct_net, dist] : directly_connected) {
                             if (direct_net == rt_network) {
                                 rt_info.distance = dist;
@@ -272,9 +272,6 @@ private:
                     cout << "aa" << endl;
 
                     set_distance_to_infinity_for_route(network);
-                    // funkcja do zmiany odleglosci na infinity w sciezce majacej ten adres jako next hop
-                    //
-
                     // dla bezposrednich nie zmieniamy na infinity tylko zmieniamy odleglosci w sciezkach ktore przechodza przez ten adres
                 }
                 else {
@@ -284,11 +281,6 @@ private:
                     // i zmieniamy distance na nieskonczonosc
                 }
             }
-            // czyli sasiedzi nie wysylaja nam lepszych lub rownych odleglosci (czyli jakas awaria) zmiana na nieskonczonosc
-            // i zmiana w tablicy routingu dla wartości ktore maja hop przez ten adres
-            // ale chyba tylko dla bezposrednich
-            // tzn nie dostajemy w kilku turach odpowiedzi od sasiada (czyli informacji o directach) wiec zmieniamy odleglosc do directow na infi oraz
-            // musimy zmienic odleglosc na inf i dla wszystkich tras ktore maja ten adres jako next hop
         }
 
         for (auto it = routing_table.begin(); it != routing_table.end(); ) {
@@ -347,8 +339,10 @@ private:
         uint32_t cost_to_sender = INFINITY_DISTANCE;
         for (const auto& [net, dist] : directly_connected) {
             // Sprawdź, czy nadawca należy do tej samej sieci
+            // i zmieniamy odleglośc na oryginalna (bo mogła być nieskończona)
             if ((src_ip & (0xFFFFFFFF << (32 - net.mask))) == net.ip) {
                 cost_to_sender = dist;
+                routing_table[net] = {cost_to_sender, 0, now};
                 break;
             }
         }
@@ -359,26 +353,13 @@ private:
         // Obliczenie adresu sieci
         NetworkAddress dest{network_ip, mask};
 
-        // Sprawdź czy to nie jest nasza bezpośrednia sieć
-        for (const auto& [direct_net, dist] : directly_connected) {
-            // jeśli to nasza bezpośrednia sieć ktora przyszla od naszego sąsiada to ignorujemy
-            // sprawdzenie czy src_ip jest w naszej bezpośredniej sieci
-
-            if ((dest == direct_net) && ((src_ip & (0xFFFFFFFF << (32 - direct_net.mask))) == direct_net.ip)) {
-                // niedziala gdy nam interfejs nie dziala i dostajemy nasz siec od innej maszyny (na okolo)
-                // Jeśli to nasza bezpośrednia sieć to aktualizujemy odległość (bo mogła być nieskończona ale już działa)
-                routing_table[dest] = {cost_to_sender, 0, now};
-                return;
-            }
-        }
-
-        // mozna dodac jeszcze ze jak pobieramy informacje o jakiejś sieci to sprawdzamy (gdy odleglosc jest mniejsza) czy przypadkiem
-        // next_hop nie jest nasza bezposrednia siecia (teraz tez dziala ale dopierop po paru turach sie dowiadujemy ze jakas sieć nie działa)
-
         // Oblicz nową odległość (uwzględniając nieskończoność)
         uint32_t new_distance = (distance == INFINITY_DISTANCE) ?
                                 INFINITY_DISTANCE :
                                 min(cost_to_sender + distance, (uint32_t)INFINITY_DISTANCE);
+
+        // mozna dodac jeszcze ze jak pobieramy informacje o jakiejś sieci to sprawdzamy (gdy odleglosc jest mniejsza) czy przypadkiem
+        // next_hop nie jest nasza bezposrednia siecia (teraz tez dziala ale dopierop po paru turach sie dowiadujemy ze jakas sieć nie działa)
 
         // Sprawdź, czy mamy lepszą trasę lub czy jest to nowa trasa
         auto it = routing_table.find(dest);

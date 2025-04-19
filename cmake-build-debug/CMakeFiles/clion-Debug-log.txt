@@ -1,5 +1,4 @@
-C:\Windows\system32\wsl.exe --distribution Ubuntu --exec "/mnt/c/Program Files/JetBrains/CLion 2024.1/bin/ttyfix" /bin/bash -c "export CLION_IDE=TRUE && export CMAKE_COLOR_DIAGNOSTICS=ON && export JETBRAINS_IDE=TRUE && cd /mnt/c/Users/Marce/CLionProjects/sieci2 && /usr/bin/cmake -DCMAKE_BUILD_TYPE=Debug '-DCMAKE_CXX_COMPILER=/usr/bin/g++' -G 'CodeBlocks - Unix Makefiles' -S /mnt/c/Users/Marce/CLionProjects/sieci2 -B /mnt/c/Users/Marce/CLionProjects/sieci2"
-CMake Error: The current CMakeCache.txt directory /mnt/c/Users/Marce/CLionProjects/sieci2/CMakeCache.txt is different than the directory /mnt/c/Users/Marce/CLionProjects/sieci2/cmake-build-debug where CMakeCache.txt was created. This may result in binaries being created in the wrong place. If you are not sure, reedit the CMakeCache.txt
+C:\Windows\system32\wsl.exe --distribution Ubuntu --exec /bin/bash -c "export CMAKE_COLOR_DIAGNOSTICS=ON && export CLION_IDE=TRUE && export JETBRAINS_IDE=TRUE && cd /mnt/c/Users/Marcel/CLionProjects/router && /usr/bin/cmake -DCMAKE_BUILD_TYPE=Debug '-DCMAKE_CXX_COMPILER=/usr/bin/g++' -G 'CodeBlocks - Unix Makefiles' -S /mnt/c/Users/Marcel/CLionProjects/router -B /mnt/c/Users/Marcel/CLionProjects/router"
 -- The C compiler identification is GNU 11.4.0
 -- The CXX compiler identification is GNU 11.4.0
 -- Detecting C compiler ABI info
@@ -12,5 +11,6 @@ CMake Error: The current CMakeCache.txt directory /mnt/c/Users/Marce/CLionProjec
 -- Check for working CXX compiler: /usr/bin/g++ - skipped
 -- Detecting CXX compile features
 -- Detecting CXX compile features - done
--- Configuring incomplete, errors occurred!
-See also "/mnt/c/Users/Marce/CLionProjects/sieci2/CMakeFiles/CMakeOutput.log".
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /mnt/c/Users/Marcel/CLionProjects/router

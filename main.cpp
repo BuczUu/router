@@ -371,7 +371,7 @@ private:
             }
         } else {
             // Istniejąca trasa - aktualizuj jeśli nowa odległość jest lepsza
-            if (new_distance < it->second.distance && ) {
+            if (new_distance < it->second.distance ) {
                 it->second = {new_distance, src_ip, now};
             }
             // jeśli nowa odległość jest równa to aktualizujemy czas

@@ -1,3 +1,6 @@
+// Marceli Buczek
+// 339966
+
 #include <iostream>
 #include <vector>
 #include <map>
@@ -104,14 +107,28 @@ public:
         }
 
         sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+        if (sockfd < 0) {
+            perror("socket creation failed");
+            return false;
+        }
+
         int broadcast = 1;
-        setsockopt(sockfd, SOL_SOCKET, SO_BROADCAST, &broadcast, sizeof(broadcast));
+        if (setsockopt(sockfd, SOL_SOCKET, SO_BROADCAST, &broadcast, sizeof(broadcast)) < 0) {
+            perror("setsockopt failed");
+            close(sockfd);
+            return false;
+        }
 
         struct sockaddr_in servaddr{};
         servaddr.sin_family = AF_INET;
         servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
         servaddr.sin_port = htons(PORT);
-        bind(sockfd, (struct sockaddr*)&servaddr, sizeof(servaddr));
+
+        if (bind(sockfd, (struct sockaddr*)&servaddr, sizeof(servaddr)) < 0) {
+            perror("bind failed");
+            close(sockfd);
+            return false;
+        }
 
         return true;
     }
@@ -151,11 +168,7 @@ private:
             inet_ntop(AF_INET, &dest_addr.sin_addr, broadcast_str, sizeof(broadcast_str));
 
             if (!isReachable(broadcast_str)) {
-                /*
-                cout << "Network " << network.ip << "/" << (int)network.mask
-                     << " (broadcast: " << broadcast_str << ") is unreachable" << endl;
-                */
-                // Znajdź odpowiedni wpis w routing_table
+                // znajdz odpowiedni wpis w routing_table
                 for (auto& [rt_network, rt_info] : routing_table) {
                     if (rt_network.ip == network.ip &&
                         rt_network.mask == network.mask &&
@@ -163,16 +176,14 @@ private:
                         rt_info.distance = INFINITY_DISTANCE;
                         rt_info.last_update = now;
 
-                        // funkcja do zmiany odleglosci na infinity w sciezce majacej ten adres jako next hop
                         set_distance_to_infinity_for_route(network);
-
                         break;
                     }
                 }
                 continue;
             }
             else {
-                // jezeli nie ma networka w routing table to dodac z czasem
+                // jezeli nie ma sieci w routing table to dodac
                 // wpp zmien tylko odleglosc
 
                 auto it = routing_table.find(network);
@@ -195,8 +206,8 @@ private:
             }
 
             for (const auto& [network, info] : routing_table) {
-                // nie wysyłamy pakietów na temat sieci, która jest nieaktywne od paru i ma odległość nieskończoną
-                // bezpośrednie sieci zostawiamy, a niebezpośrednie w cleanie usuwamy
+                // nie wysyłamy pakietów na temat sieci ktora jest nieaktywne i ma odległość nieskończoną
+                // bezpośrednie sieci zostawiamy a pośrednie w cleanie usuwamy
                 if ((now - info.last_update > GARBAGE_COLLECTION_INTERVAL) && (info.distance == INFINITY_DISTANCE)) continue;
 
                 uint8_t packet[9];
@@ -209,25 +220,11 @@ private:
                 memcpy(packet + 5, &distance, 4);
 
                 // wysyłamy pakiet na adres rozgłoszeniowy
-                sendto(sockfd, packet, sizeof(packet), 0,
-                                   (struct sockaddr*)&dest_addr, sizeof(dest_addr));
-
-
-
-                /*
-                if (n < 0) {
-                    cerr << "Error sending packet to " << inet_ntoa(dest_addr.sin_addr) << endl;
-
-                    // ustawiamy odległość odbiorcy na nieskończoność
-                    auto it = routing_table.find(network);
-                    if (it != routing_table.end()) {
-                        cout << "x" << endl;
-                        it->second.distance = INFINITY_DISTANCE;
-                    }
-                } else {
-                    //cout << "Sent update to " << inet_ntoa(dest_addr.sin_addr) << endl;
+                if (sendto(sockfd, packet, sizeof(packet), 0,
+                           (struct sockaddr*)&dest_addr, sizeof(dest_addr)) < 0) {
+                    perror("sendto failed");
+                    continue;
                 }
-                 */
             }
         }
     }
@@ -243,7 +240,6 @@ private:
     // funkcja do ustwienia odleglosci na infinity w sciezce majacej ten adres jako next hop
     void set_distance_to_infinity_for_route(const NetworkAddress& network) {
         for (auto& [net, info] : routing_table) {
-            // musimy przekonwertowac adres next_hop na adres sieci
             auto network_from_ip = info.next_hop & (0xFFFFFFFF << (32 - network.mask));
 
             if (network_from_ip == network.ip) {
@@ -252,36 +248,20 @@ private:
         }
     }
 
-
-
     void cleanup_old_routes() {
         lock_guard<mutex> lock(table_mutex);
         time_t now = time(nullptr);
 
         // sprawdzamy czy dostaliśmy pakiety od sąsiadów w ciagu ROUTE_TIMEOUT jesli nie to ustawiamy odległość tras przechodzących przez nich na nieskończoność
         for (auto& [network, info] : routing_table) {
-            /*
-            cout << "Network: " << network.ip << "/" << (int)network.mask
-                 << ", Distance: " << info.distance
-                 << ", Last update: " << ctime(&info.last_update)
-                 << ", Now: " << ctime(&now);
-            */
-            // zmienic
-            // bo gdy nie dostaniemy pakietu od sasiada przez tyle tur to cos jest nie tak
-            // trzebabybylo zmienic kazda trace z tym adresem na nieskonczonosc
             if (info.distance != INFINITY_DISTANCE && now - info.last_update > ROUTE_TIMEOUT) {
 
                 if (info.is_directly_connected()) {
-                    cout << "aa" << endl;
-
                     set_distance_to_infinity_for_route(network);
                     // dla bezposrednich nie zmieniamy na infinity tylko zmieniamy odleglosci w sciezkach ktore przechodza przez ten adres
                 }
                 else {
-                    cout << "bb" << endl;
                     info.distance = INFINITY_DISTANCE;
-                    // zmieniamy na infinity bo to nie nasza bezposrednia siec
-                    // i zmieniamy distance na nieskonczonosc
                 }
             }
         }
@@ -289,7 +269,6 @@ private:
         for (auto it = routing_table.begin(); it != routing_table.end(); ) {
             const RouteInfo& info = it->second;
 
-            // nie usuwa trasy gdy np. 4 trasy maja unreachable tej samej sieci (bo aktualizujemy timestamp bo
             // usuwamy tylko trasy ktore maja distance = infinity i sa przestarzałe, ale nie usuwamy bezpośrednich
             if ((info.distance == INFINITY_DISTANCE) && (now - info.last_update > GARBAGE_COLLECTION_INTERVAL) && (!info.is_directly_connected())) {
                 it = routing_table.erase(it);
@@ -314,7 +293,15 @@ private:
 
                 ssize_t n = recvfrom(sockfd, buffer, sizeof(buffer), 0,
                                      (struct sockaddr*)&cliaddr, &len);
-                //cout << "Received packet from " << inet_ntoa(cliaddr.sin_addr) << endl;
+                if (n < 0) {
+                    if (errno == EINTR) continue;
+                    perror("recvfrom failed");
+                    continue;
+                }
+                else if (n != sizeof(buffer)) {
+                    cerr << "Received incomplete packet (" << n << " bytes)" << endl;
+                    continue;
+                }
                 if (n == sizeof(buffer)) {
                     process_packet(ntohl(cliaddr.sin_addr.s_addr), buffer);
                 }
@@ -323,9 +310,9 @@ private:
     }
 
     void process_packet(uint32_t src_ip, const uint8_t* packet) {
+        // ignorujemy wlasne pakiety
         for (uint32_t my_ip : local_ips) {
             if (src_ip == my_ip) {
-                //cout << "Ignored packet from self (" << src_ip << ")" << endl;
                 return;
             }
         }
@@ -336,12 +323,10 @@ private:
         lock_guard<mutex> lock(table_mutex);
         time_t now = time(nullptr);
 
-
-
-        // Znajdź koszt dotarcia do nadawcy (src_ip)
+        // znajdujemy koszt dotarcia do nadawcy (src_ip)
         uint32_t cost_to_sender = INFINITY_DISTANCE;
         for (const auto& [net, dist] : directly_connected) {
-            // Sprawdź, czy nadawca należy do tej samej sieci
+            // sprawdz czy nadawca należy do tej samej sieci
             // i zmieniamy odleglośc na oryginalna (bo mogła być nieskończona)
             if ((src_ip & (0xFFFFFFFF << (32 - net.mask))) == net.ip) {
                 cost_to_sender = dist;
@@ -350,27 +335,28 @@ private:
             }
         }
 
-        // Jeśli nie mamy połączenia do nadawcy, odrzuć pakiet
+        // Jeśli nie mamy połączenia do nadawcyt to odrzucay pakiet
         if (cost_to_sender == INFINITY_DISTANCE) return;
 
-        // Obliczenie adresu sieci
+        // obliczenie adresu sieci
         NetworkAddress dest{network_ip, mask};
 
-        // Oblicz nową odległość (uwzględniając nieskończoność)
+        // obliczanie nowej odległosc (uwzględniając nieskończoność)
         uint32_t new_distance = (distance == INFINITY_DISTANCE) ?
                                 INFINITY_DISTANCE :
                                 min(cost_to_sender + distance, (uint32_t)INFINITY_DISTANCE);
 
-        // Sprawdź, czy mamy lepszą trasę lub czy jest to nowa trasa
+        // sprawdzamy czy mamy lepszą trasę lub czy jest to nowa trasa
         auto it = routing_table.find(dest);
 
         if (it == routing_table.end()) {
-            // Nowa trasa - dodaj jeśli odległość jest lepsza niż nieskończoność
+            // nowa trasa - dodajemy jeśli odległość jest lepsza niż nieskończoność
             if (new_distance < INFINITY_DISTANCE) {
                 routing_table[dest] = {new_distance, src_ip, now};
             }
-        } else {
-            // Istniejąca trasa - aktualizuj jeśli nowa odległość jest lepsza
+        }
+        else {
+            // istniejąca trasa - aktualizuj jeśli nowa odległość jest lepsza
             if (new_distance < it->second.distance ) {
                 it->second = {new_distance, src_ip, now};
             }
@@ -389,11 +375,6 @@ private:
 
             lock_guard<mutex> lock(table_mutex);
             time_t now = time(nullptr);
-
-            // wyswietlamy brodkast i adresy sieci
-
-
-
 
             cout << "\nRouting table at " << ctime(&now);
 

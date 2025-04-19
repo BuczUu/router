@@ -21,8 +21,8 @@ using namespace std;
 const int PORT = 54321;
 const int INFINITY_DISTANCE = 10;
 const int UPDATE_INTERVAL = 10;
-const int ROUTE_TIMEOUT = 3 * UPDATE_INTERVAL;
-const int GARBAGE_COLLECTION_INTERVAL = 6 * UPDATE_INTERVAL;
+const int ROUTE_TIMEOUT = 2 * UPDATE_INTERVAL;
+const int GARBAGE_COLLECTION_INTERVAL = 3 * UPDATE_INTERVAL;
 
 struct NetworkAddress {
     uint32_t ip;
@@ -197,7 +197,7 @@ private:
             for (const auto& [network, info] : routing_table) {
                 // nie wysyłamy pakietów na temat sieci, która jest nieaktywne od paru i ma odległość nieskończoną
                 // bezpośrednie sieci zostawiamy, a niebezpośrednie w cleanie usuwamy
-                if ((now - info.last_update > ROUTE_TIMEOUT) && (info.distance == INFINITY_DISTANCE)) continue;
+                if ((now - info.last_update > GARBAGE_COLLECTION_INTERVAL) && (info.distance == INFINITY_DISTANCE)) continue;
 
                 uint8_t packet[9];
                 uint32_t network_ip = htonl(network.ip);
@@ -361,9 +361,6 @@ private:
                                 INFINITY_DISTANCE :
                                 min(cost_to_sender + distance, (uint32_t)INFINITY_DISTANCE);
 
-        // mozna dodac jeszcze ze jak pobieramy informacje o jakiejś sieci to sprawdzamy (gdy odleglosc jest mniejsza) czy przypadkiem
-        // next_hop nie jest nasza bezposrednia siecia (teraz tez dziala ale dopierop po paru turach sie dowiadujemy ze jakas sieć nie działa)
-
         // Sprawdź, czy mamy lepszą trasę lub czy jest to nowa trasa
         auto it = routing_table.find(dest);
 
@@ -374,7 +371,7 @@ private:
             }
         } else {
             // Istniejąca trasa - aktualizuj jeśli nowa odległość jest lepsza
-            if (new_distance < it->second.distance) {
+            if (new_distance < it->second.distance && ) {
                 it->second = {new_distance, src_ip, now};
             }
             // jeśli nowa odległość jest równa to aktualizujemy czas

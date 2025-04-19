@@ -172,22 +172,24 @@ private:
                 continue;
             }
             else {
-                for (auto& [rt_network, rt_info] : routing_table) {
-                    if (rt_network.ip == network.ip &&
-                        rt_network.mask == network.mask &&
-                        rt_info.is_directly_connected()) {
+                // jezeli nie ma networka w routing table to dodac z czasem
+                // wpp zmien tylko odleglosc
 
-                        // zmien distance na distance z directly_connected
-                        for (const auto& [direct_net, dist] : directly_connected) {
-                            if (direct_net == rt_network) {
-                                rt_info.distance = dist;
-                                break;
-                            }
-                        }
-                        // nie zmieniamy last_update bo psuje to nam wykrywanie czy nic z danej sieci nie dostajemy
-                        // tzn moze byc ze nie dostajemy z tej sieci zadnych danych wiec nie mozemy miec sciezek przez nia
+                auto it = routing_table.find(network);
+                uint32_t d = INFINITY_DISTANCE;
+
+                for (const auto& [direct_net, dist] : directly_connected) {
+                    if (direct_net == network) {
+                        d = dist;
                         break;
                     }
+                }
+
+                if (it == routing_table.end()) {
+                    routing_table[network] = {d,0,now};
+                }
+                else {
+                    it->second.distance = d;
                 }
             }
 
@@ -342,7 +344,6 @@ private:
             // i zmieniamy odleglośc na oryginalna (bo mogła być nieskończona)
             if ((src_ip & (0xFFFFFFFF << (32 - net.mask))) == net.ip) {
                 cost_to_sender = dist;
-                routing_table[net] = {cost_to_sender, 0, now};
                 break;
             }
         }

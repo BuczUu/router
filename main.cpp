@@ -190,6 +190,7 @@ private:
                 }
                 else {
                     it->second.distance = d;
+                    it->second.next_hop = 0;
                 }
             }
 

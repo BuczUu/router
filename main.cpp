@@ -393,6 +393,8 @@ private:
             // wyswietlamy brodkast i adresy sieci
 
 
+
+
             cout << "\nRouting table at " << ctime(&now);
 
             for (const auto& [net, info] : routing_table) {
